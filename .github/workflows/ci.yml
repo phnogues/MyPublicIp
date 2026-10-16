@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore MyPublicIp.slnx -p:Platform=x64
+
+      - name: Build
+        run: dotnet build MyPublicIp.slnx --configuration Release -p:Platform=x64 --no-restore
+
+      - name: Test
+        run: dotnet test --project tests/MyPublicIp.Core.Tests/MyPublicIp.Core.Tests.csproj --configuration Release --no-build

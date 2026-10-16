@@ -1,0 +1,17 @@
+<Project>
+  <!-- Settings shared by every project of the solution -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <Authors>Pierre-Henri Nogues</Authors>
+    <Product>My Public IP Address</Product>
+    <Copyright>Copyright © Pierre-Henri Nogues</Copyright>
+    <RepositoryUrl>https://github.com/phnogues/MyPublicIp</RepositoryUrl>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,103 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <RootNamespace>MyPublicIp</RootNamespace>
+    <AssemblyName>MyPublicIp</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\TrayIcon.ico</ApplicationIcon>
+    <Platforms>x86;x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(Platform)' == 'x86'">win-x86</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <!-- Custom Main in Program.cs (single instance) -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+  </PropertyGroup>
+
+  <!-- MSIX / Microsoft Store packaging -->
+  <PropertyGroup>
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <AppxBundle>Always</AppxBundle>
+    <AppxBundlePlatforms>x86|x64|arm64</AppxBundlePlatforms>
+    <!-- Managed portable PDBs: the native symbol conversion step is not needed -->
+    <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled>
+    <GenerateAppInstallerFile>false</GenerateAppInstallerFile>
+    <GenerateTestArtifacts>false</GenerateTestArtifacts>
+    <AppxPackageDir>$(MSBuildProjectDirectory)\..\..\artifacts\AppPackages\</AppxPackageDir>
+    <!--
+      Keep every language in the main package: by default the bundle would move French to a resource
+      package, which the tooling does not produce here (French was silently missing from the Store build).
+      The strings weigh a few KB, and the manifest then declares both languages for the Store listing.
+    -->
+    <AppxBundleAutoResourcePackageQualifiers>Scale|DXFeatureLevel</AppxBundleAutoResourcePackageQualifiers>
+  </PropertyGroup>
+
+  <!--
+    The Store has no .NET framework package: the runtime ships inside the MSIX.
+    Trimming keeps it small (~8 MB per architecture instead of ~60 MB): the MSIX tooling packages the
+    publish output, so it applies to "Create App Packages" and GenerateAppxPackageOnBuild builds.
+    ReadyToRun is left off: it makes the package about 50% bigger for a faster first start.
+    After a change here, delete obj\ (the trimmer does not rerun when only its options change).
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <!-- IL2104 only reports that Microsoft.Windows.SDK.NET and WinRT.Runtime contain trim warnings of their own.
+         Trim warnings in this solution (IL2026, IL2070...) still fail the build. -->
+    <NoWarn>$(NoWarn);IL2104</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    The self-contained runtime brings native files this app never loads: debugger and dump support
+    (mscordbi, mscordaccore, createdump, DiaSymReader), the standalone GCs (clrgc, clrgcexp, only used
+    with DOTNET_GCName) and msquic (HTTP/3, turned off by trimming). Left out of Store/sideload packages
+    only (UapAppxPackageBuildMode is set), so that F5 debugging keeps working.
+  -->
+  <Target Name="RemoveUnusedRuntimeFiles" AfterTargets="ResolveRuntimePackAssets"
+          Condition="'$(PublishTrimmed)' == 'true' and '$(UapAppxPackageBuildMode)' != ''">
+    <ItemGroup>
+      <_UnusedRuntimeFile Include="@(RuntimePackAsset)"
+                          Condition="'%(Filename)%(Extension)' == 'createdump.exe'
+                                     or '%(Filename)%(Extension)' == 'mscordbi.dll'
+                                     or $([System.String]::Copy('%(Filename)').StartsWith('mscordaccore'))
+                                     or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.DiaSymReader.Native.'))
+                                     or '%(Filename)%(Extension)' == 'clrgc.dll'
+                                     or '%(Filename)%(Extension)' == 'clrgcexp.dll'
+                                     or '%(Filename)%(Extension)' == 'msquic.dll'" />
+      <RuntimePackAsset Remove="@(_UnusedRuntimeFile)" />
+      <ReferenceCopyLocalPaths Remove="@(_UnusedRuntimeFile)" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <!-- Copied to the output too, so that the bin folder can be registered as a loose package -->
+    <Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\TrayIcon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <!-- Enables "Package and Publish" in Visual Studio -->
+  <ItemGroup>
+    <ProjectCapability Include="Msix" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="H.NotifyIcon.WinUI" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyPublicIp.Core\MyPublicIp.Core.csproj" />
+  </ItemGroup>
+
+</Project>

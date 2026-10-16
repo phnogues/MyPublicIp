@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AppName" xml:space="preserve">
+    <value>My Public IP Address</value>
+  </data>
+  <data name="HeaderText.Text" xml:space="preserve">
+    <value>Adresse IP publique</value>
+  </data>
+  <data name="RefreshButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Actualiser</value>
+  </data>
+  <data name="RefreshButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Actualiser</value>
+  </data>
+  <data name="CopyIPv4Button.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Copier l'adresse IPv4</value>
+  </data>
+  <data name="CopyIPv4Button.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Copier l'adresse IPv4</value>
+  </data>
+  <data name="CopyIPv6Button.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Copier l'adresse IPv6</value>
+  </data>
+  <data name="CopyIPv6Button.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Copier l'adresse IPv6</value>
+  </data>
+  <data name="PinTipInfoBar.Title" xml:space="preserve">
+    <value>Astuce</value>
+  </data>
+  <data name="PinTipInfoBar.Message" xml:space="preserve">
+    <value>Windows peut masquer cette icône derrière la flèche ^ près de l'horloge. Faites-la glisser dans la barre des tâches pour garder votre IP à portée de clic.</value>
+  </data>
+  <data name="StartupCheckBox.Content" xml:space="preserve">
+    <value>Lancer au démarrage de Windows</value>
+  </data>
+  <data name="NotAvailable" xml:space="preserve">
+    <value>Non disponible</value>
+  </data>
+  <data name="UpdatedAt" xml:space="preserve">
+    <value>Mise à jour à {0}</value>
+  </data>
+  <data name="StatusLookingUp" xml:space="preserve">
+    <value>Recherche en cours…</value>
+  </data>
+  <data name="StatusOffline" xml:space="preserve">
+    <value>Pas de connexion Internet</value>
+  </data>
+  <data name="StatusOfflineDetail" xml:space="preserve">
+    <value>Votre IP s'affichera dès le retour de la connexion.</value>
+  </data>
+  <data name="StatusFailed" xml:space="preserve">
+    <value>IP publique indisponible</value>
+  </data>
+  <data name="StatusFailedDetail" xml:space="preserve">
+    <value>Les services de détection ne répondent pas. Nouvel essai automatique.</value>
+  </data>
+  <data name="StartupDisabledByUser" xml:space="preserve">
+    <value>Désactivé dans les Paramètres Windows. Cliquez pour ouvrir Applications de démarrage.</value>
+  </data>
+  <data name="StartupManagedByPolicy" xml:space="preserve">
+    <value>Géré par votre organisation</value>
+  </data>
+  <data name="ToolTipLine" xml:space="preserve">
+    <value>{0} : {1}</value>
+  </data>
+  <data name="MenuShow" xml:space="preserve">
+    <value>Afficher</value>
+  </data>
+  <data name="MenuCopyIPv4" xml:space="preserve">
+    <value>Copier l'adresse IPv4</value>
+  </data>
+  <data name="MenuCopyIPv6" xml:space="preserve">
+    <value>Copier l'adresse IPv6</value>
+  </data>
+  <data name="MenuRefresh" xml:space="preserve">
+    <value>Actualiser</value>
+  </data>
+  <data name="MenuStartWithWindows" xml:space="preserve">
+    <value>Lancer au démarrage de Windows</value>
+  </data>
+  <data name="MenuQuit" xml:space="preserve">
+    <value>Quitter</value>
+  </data>
+  <data name="CopyLocalButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Copier l'adresse locale</value>
+  </data>
+  <data name="CopyLocalButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Copier l'adresse locale</value>
+  </data>
+  <data name="LocalNetwork" xml:space="preserve">
+    <value>Réseau local</value>
+  </data>
+  <data name="LocalNetworkOn" xml:space="preserve">
+    <value>Réseau local · {0}</value>
+  </data>
+  <data name="HistoryHeader" xml:space="preserve">
+    <value>Adresses récentes ({0})</value>
+  </data>
+  <data name="Yesterday" xml:space="preserve">
+    <value>Hier {0}</value>
+  </data>
+  <data name="NotifyCheckBox.Content" xml:space="preserve">
+    <value>M'avertir quand mon IP change</value>
+  </data>
+  <data name="MenuNotifyOnChange" xml:space="preserve">
+    <value>M'avertir quand mon IP change</value>
+  </data>
+  <data name="NotificationTitle" xml:space="preserve">
+    <value>Votre adresse IP publique a changé</value>
+  </data>
+  <data name="NotificationBody" xml:space="preserve">
+    <value>{0} → {1}</value>
+  </data>
+  <data name="NotificationCopy" xml:space="preserve">
+    <value>Copier la nouvelle adresse</value>
+  </data>
+</root>

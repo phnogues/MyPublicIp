@@ -1,0 +1,33 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+    <Platform Name="ARM64" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/MyPublicIp.Core/MyPublicIp.Core.csproj">
+      <Platform Project="Any CPU" />
+    </Project>
+    <Project Path="src/MyPublicIp/MyPublicIp.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Deploy />
+    </Project>
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MyPublicIp.Core.Tests/MyPublicIp.Core.Tests.csproj">
+      <Platform Project="Any CPU" />
+    </Project>
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/tools/">
+    <File Path="tools/generate-assets.py" />
+  </Folder>
+</Solution>

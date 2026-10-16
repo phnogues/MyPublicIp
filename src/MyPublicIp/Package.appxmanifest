@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  IgnorableNamespaces="uap uap5 rescap com desktop">
+
+  <!-- Identity of the existing Store listing "My Public IP Address" (Partner Center). The version must stay above 1.0.13.0. -->
+  <Identity
+    Name="16566phsoftwares.MyPublicIPAddress"
+    Publisher="CN=1367212D-3E68-4FC7-B64A-7EE72497F4A7"
+    Version="2.0.0.0" />
+
+  <Properties>
+    <DisplayName>My Public IP Address</DisplayName>
+    <PublisherDisplayName>phsoftwares</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="x-generate" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="$targetentrypoint$">
+      <uap:VisualElements
+        DisplayName="My Public IP Address"
+        Description="Shows your public IP address next to the clock and tells you when it changes."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!-- "Start with Windows", managed by the user in Settings > Apps > Startup -->
+        <uap5:Extension Category="windows.startupTask" Executable="MyPublicIp.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap5:StartupTask TaskId="MyPublicIpStartup" Enabled="false" DisplayName="My Public IP Address" />
+        </uap5:Extension>
+
+        <!-- "IP changed" notifications: a click starts the app (or reaches the running instance) through this COM class -->
+        <desktop:Extension Category="windows.toastNotificationActivation">
+          <desktop:ToastNotificationActivation ToastActivatorCLSID="a6c4e01f-7aa3-4940-acaa-97135b79f2e3" />
+        </desktop:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer Executable="MyPublicIp.exe" DisplayName="My Public IP Address" Arguments="----AppNotificationActivated:">
+              <com:Class Id="a6c4e01f-7aa3-4940-acaa-97135b79f2e3" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
