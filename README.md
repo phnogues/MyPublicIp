@@ -23,11 +23,9 @@
 </p>
 
 <p align="center">
-  <a href="docs/media/trailer.mp4">
-    <img src="docs/media/trailer-thumbnail.png" alt="Watch the 30-second trailer" width="720" />
-  </a>
+  <img src="docs/media/trailer.webp" alt="30-second trailer: the flyout, the notification when the IP changes, the tooltip and the menu" width="720" />
   <br />
-  <sub>▶ Watch the 30-second trailer</sub>
+  <sub>Full-quality video: <a href="https://github.com/phnogues/MyPublicIp/raw/main/docs/media/trailer.mp4">trailer.mp4</a></sub>
 </p>
 
 ---
