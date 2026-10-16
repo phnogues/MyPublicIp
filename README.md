@@ -23,7 +23,11 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/flyout-dark.png" alt="The flyout above the Windows clock: public IPv4 and IPv6, local address and recent addresses" width="400" />
+  <a href="docs/media/trailer.mp4">
+    <img src="docs/media/trailer-thumbnail.png" alt="Watch the 30-second trailer" width="720" />
+  </a>
+  <br />
+  <sub>▶ Watch the 30-second trailer</sub>
 </p>
 
 ---
@@ -49,11 +53,16 @@ tells you when it changes, for instance when your VPN drops.
 
 ## Screenshots
 
-| Notification when the IP changes | Tooltip on hover |
+| Flyout, dark theme | Flyout, light theme |
 | :---: | :---: |
+| <img src="docs/images/flyout-dark.png" alt="The flyout above the Windows clock: public IPv4 and IPv6, local address and recent addresses" width="340" /> | <img src="docs/images/flyout-light.png" alt="Flyout, light theme" width="340" /> |
+| **Notification when the IP changes** | **Tooltip on hover** |
 | <img src="docs/images/notification.png" alt="Windows notification: your public IP address changed, with a button to copy the new address" width="380" /> | <img src="docs/images/tooltip.png" alt="Tooltip of the notification area icon with the IPv4 and IPv6 addresses" width="300" /> |
-| **Light theme** | **Right-click menu** |
-| <img src="docs/images/flyout-light.png" alt="Flyout, light theme" width="340" /> | <img src="docs/images/menu.png" alt="Right-click menu of the notification area icon" width="320" /> |
+
+<p align="center">
+  <img src="docs/images/menu.png" alt="Right-click menu of the notification area icon" width="320" /><br/>
+  <sub>Right-click menu</sub>
+</p>
 
 <sub>Screenshots use addresses reserved for documentation (RFC 5737 and RFC 3849).</sub>
 
