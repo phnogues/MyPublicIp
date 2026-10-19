@@ -1,28 +1,23 @@
-using Microsoft.Extensions.Time.Testing;
 using MyPublicIp.Core.Abstractions;
 using MyPublicIp.Core.History;
+using MyPublicIp.Core.LocalNetwork;
 using MyPublicIp.Core.PublicIp;
 using MyPublicIp.Core.ViewModels;
 
 namespace MyPublicIp.Core.Tests;
 
-public sealed class MainViewModelTests
+public sealed class MainViewModelTests : IDisposable
 {
-    private static readonly DateTimeOffset Now = new(2026, 10, 16, 10, 42, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = ViewModelFixture.Now;
 
-    private readonly FakeMonitor _monitor = new();
-    private readonly FakeStartupManager _startup = new(StartupState.Disabled);
-    private readonly FakeClipboard _clipboard = new();
-    private readonly FakeSettings _settings = new();
-    private readonly FakeTimeProvider _time = new(Now);
-    private readonly FakeHistoryStore _historyStore = new();
-    private readonly FakeNotifier _notifier = new();
-    private readonly FakeLocalNetwork _localNetwork = new();
+    private readonly ViewModelFixture _fixture = new();
+
+    public void Dispose() => _fixture.Dispose();
 
     [Fact]
     public void Shows_placeholders_while_looking_up()
     {
-        MainViewModel viewModel = CreateViewModel();
+        MainViewModel viewModel = _fixture.CreateMain();
 
         Assert.Equal("…", viewModel.IPv4Text);
         Assert.Equal("…", viewModel.IPv6Text);
@@ -32,25 +27,29 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public void Shows_the_addresses_in_the_flyout_and_the_tooltip()
+    public void Shows_the_addresses_their_location_and_the_vpn_in_the_tooltip()
     {
-        MainViewModel viewModel = CreateViewModel();
+        _fixture.LocalNetwork.Vpn = new VpnStatus(true, "NordLynx");
+        MainViewModel viewModel = _fixture.CreateMain();
 
-        _monitor.Publish(new IpSnapshot(IpLookupStatus.Ok, "203.0.113.42", "2001:db8::42", Now, IsRefreshing: false));
+        Publish("203.0.113.42", "2001:db8::42");
 
         Assert.Equal("203.0.113.42", viewModel.IPv4Text);
         Assert.Equal("2001:db8::42", viewModel.IPv6Text);
         Assert.True(viewModel.CopyIPv4Command.CanExecute(null));
         Assert.False(viewModel.IsStatusOpen);
-        Assert.Equal("AppName\nToolTipLine(IPv4|203.0.113.42)\nToolTipLine(IPv6|2001:db8::42)", viewModel.TrayToolTip);
+        string expectedCountry = new GeoInfoProbe("FR").CountryName;
+        Assert.Equal(
+            $"AppName\nToolTipLine(IPv4|203.0.113.42)\n{expectedCountry} · Aurora Telecom\nToolTipVpn(NordLynx)\nToolTipLine(IPv6|2001:db8::42)",
+            viewModel.TrayToolTip);
     }
 
     [Fact]
     public void Says_when_there_is_no_IPv6()
     {
-        MainViewModel viewModel = CreateViewModel();
+        MainViewModel viewModel = _fixture.CreateMain();
 
-        _monitor.Publish(new IpSnapshot(IpLookupStatus.Ok, "203.0.113.42", null, Now, IsRefreshing: false));
+        Publish("203.0.113.42", null);
 
         Assert.Equal("NotAvailable", viewModel.IPv6Text);
         Assert.False(viewModel.CopyIPv6Command.CanExecute(null));
@@ -61,9 +60,9 @@ public sealed class MainViewModelTests
     [InlineData(IpLookupStatus.Failed, StatusKind.Failed, "StatusFailed")]
     public void Explains_why_there_is_no_address(IpLookupStatus status, StatusKind expectedKind, string expectedTitle)
     {
-        MainViewModel viewModel = CreateViewModel();
+        MainViewModel viewModel = _fixture.CreateMain();
 
-        _monitor.Publish(new IpSnapshot(status, null, null, null, IsRefreshing: false));
+        _fixture.Monitor.Publish(new IpSnapshot(status, null, null, null, IsRefreshing: false));
 
         Assert.True(viewModel.IsStatusOpen);
         Assert.Equal(expectedKind, viewModel.Status);
@@ -75,9 +74,10 @@ public sealed class MainViewModelTests
     [Fact]
     public void Cuts_the_tooltip_to_the_Windows_limit()
     {
-        MainViewModel viewModel = CreateViewModel(new LongLocalizer());
+        _fixture.Localizer = new LongLocalizer();
+        MainViewModel viewModel = _fixture.CreateMain();
 
-        _monitor.Publish(new IpSnapshot(IpLookupStatus.Ok, "203.0.113.42", "2001:db8:85a3:8d3:1319:8a2e:370:7348", Now, IsRefreshing: false));
+        Publish("203.0.113.42", "2001:db8:85a3:8d3:1319:8a2e:370:7348");
 
         Assert.Equal(MainViewModel.MaxToolTipLength, viewModel.TrayToolTip.Length);
     }
@@ -85,163 +85,107 @@ public sealed class MainViewModelTests
     [Fact]
     public async Task Copies_the_address_and_shows_a_short_confirmation()
     {
-        MainViewModel viewModel = CreateViewModel();
-        _monitor.Publish(new IpSnapshot(IpLookupStatus.Ok, "203.0.113.42", null, Now, IsRefreshing: false));
+        MainViewModel viewModel = _fixture.CreateMain();
+        Publish("203.0.113.42", null);
 
         Task copy = viewModel.CopyIPv4Command.ExecuteAsync(null);
 
-        Assert.Equal("203.0.113.42", _clipboard.Text);
-        Assert.True(viewModel.IsIPv4Copied);
+        Assert.Equal("203.0.113.42", _fixture.Clipboard.Text);
+        Assert.Equal("ipv4", viewModel.CopiedItem);
 
-        _time.Advance(TimeSpan.FromSeconds(1.5));
+        _fixture.Time.Advance(TimeSpan.FromSeconds(1.5));
         await copy;
-        Assert.False(viewModel.IsIPv4Copied);
+        Assert.Null(viewModel.CopiedItem);
+    }
+
+    [Fact]
+    public void The_keyboard_shortcut_copies_the_address_and_confirms_it()
+    {
+        MainViewModel viewModel = _fixture.CreateMain();
+        Publish("203.0.113.42", null);
+
+        _fixture.Hotkey.Press();
+
+        Assert.Equal("203.0.113.42", _fixture.Clipboard.Text);
+        Assert.Equal(["203.0.113.42"], _fixture.Notifier.Copied);
     }
 
     [Fact]
     public void Refresh_asks_the_monitor()
     {
-        MainViewModel viewModel = CreateViewModel();
+        MainViewModel viewModel = _fixture.CreateMain();
 
         viewModel.RefreshCommand.Execute(null);
 
-        Assert.Equal(1, _monitor.RefreshRequests);
+        Assert.Equal(1, _fixture.Monitor.RefreshRequests);
     }
 
     [Fact]
-    public async Task First_run_turns_start_with_Windows_on()
+    public void Locates_each_new_address_once_and_records_its_country()
     {
-        MainViewModel viewModel = CreateViewModel();
+        MainViewModel viewModel = _fixture.CreateMain();
 
-        await viewModel.InitializeAsync();
+        Publish("203.0.113.42", null);
+        Publish("203.0.113.42", null, minutes: 15);
 
-        Assert.True(_settings.FirstRunDone);
-        Assert.True(viewModel.IsStartupOn);
-    }
-
-    [Fact]
-    public async Task First_run_respects_a_choice_made_in_Windows_Settings()
-    {
-        _startup.State = StartupState.DisabledByUser;
-        MainViewModel viewModel = CreateViewModel();
-
-        await viewModel.InitializeAsync();
-
-        Assert.Empty(_startup.Requests);
-        Assert.False(viewModel.IsStartupOn);
-        Assert.Equal("StartupDisabledByUser", viewModel.StartupToolTip);
-    }
-
-    [Fact]
-    public async Task Later_runs_do_not_touch_start_with_Windows()
-    {
-        _settings.FirstRunDone = true;
-        MainViewModel viewModel = CreateViewModel();
-
-        await viewModel.InitializeAsync();
-
-        Assert.Empty(_startup.Requests);
-        Assert.False(viewModel.IsStartupOn);
-    }
-
-    [Fact]
-    public async Task Toggling_start_with_Windows_always_reports_the_real_state()
-    {
-        _settings.FirstRunDone = true;
-        _startup.State = StartupState.DisabledByUser;
-        MainViewModel viewModel = CreateViewModel();
-        await viewModel.InitializeAsync();
-        var changed = new List<string?>();
-        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
-
-        await viewModel.ToggleStartupCommand.ExecuteAsync(null);
-
-        Assert.Equal([true], _startup.Requests);
-        Assert.False(viewModel.IsStartupOn);
-        Assert.Contains(nameof(MainViewModel.IsStartupOn), changed);
-    }
-
-    [Fact]
-    public void Dismissing_the_tip_is_remembered()
-    {
-        MainViewModel viewModel = CreateViewModel();
-        Assert.True(viewModel.IsPinTipOpen);
-
-        viewModel.DismissPinTipCommand.Execute(null);
-
-        Assert.False(viewModel.IsPinTipOpen);
-        Assert.True(_settings.PinTipDismissed);
-        Assert.False(CreateViewModel().IsPinTipOpen);
-    }
-
-    [Fact]
-    public async Task Shows_and_copies_the_local_address()
-    {
-        MainViewModel viewModel = CreateViewModel();
-
-        Assert.Equal("192.168.1.42", viewModel.LocalIPv4Text);
-        Assert.Equal("LocalNetworkOn(Wi-Fi)", viewModel.LocalNetworkLabel);
-
-        Task copy = viewModel.CopyLocalIPv4Command.ExecuteAsync(null);
-        Assert.Equal("192.168.1.42", _clipboard.Text);
-        _time.Advance(TimeSpan.FromSeconds(1.5));
-        await copy;
-    }
-
-    [Fact]
-    public void Has_no_local_address_when_offline()
-    {
-        _localNetwork.Address = null;
-
-        MainViewModel viewModel = CreateViewModel();
-
-        Assert.False(viewModel.CopyLocalIPv4Command.CanExecute(null));
-        Assert.Equal("—", viewModel.LocalIPv4Text);
+        Assert.Equal(["203.0.113.42"], _fixture.Geo.Requests);
+        Assert.Equal("FR", viewModel.Connection.CountryCode);
+        Assert.Equal("FR", viewModel.History[0].CountryCode);
     }
 
     [Fact]
     public void Lists_recent_addresses_with_readable_times()
     {
-        _time.SetLocalTimeZone(TimeZoneInfo.Utc);
-        var older = new IpHistoryEntry(Now.AddDays(-5), "192.0.2.81", null);
-        var yesterday = new IpHistoryEntry(Now.AddDays(-1), "198.51.100.7", null);
-        _historyStore.Save([yesterday, older]);
-        MainViewModel viewModel = CreateViewModel();
+        var older = new IpHistoryEntry(Now.AddDays(-5), "192.0.2.81", null, CountryCode: "ES");
+        var yesterday = new IpHistoryEntry(Now.AddDays(-1), "198.51.100.7", null, VpnName: "NordLynx", CountryCode: "DE");
+        _fixture.HistoryStore.Save([yesterday, older]);
+        MainViewModel viewModel = _fixture.CreateMain();
 
-        _monitor.Publish(new IpSnapshot(IpLookupStatus.Ok, "203.0.113.42", null, Now, IsRefreshing: false));
+        Publish("203.0.113.42", null);
 
         Assert.Equal(
             [
-                new HistoryRow(Now.ToString("t"), "203.0.113.42", IsCurrent: true),
-                new HistoryRow($"Yesterday({yesterday.SeenAt:t})", "198.51.100.7", IsCurrent: false),
-                new HistoryRow(older.SeenAt.ToString("g"), "192.0.2.81", IsCurrent: false),
+                new HistoryRow(Now.ToString("t"), "203.0.113.42", "FR", ThroughVpn: false, IsCurrent: true),
+                new HistoryRow($"Yesterday({yesterday.SeenAt:t})", "198.51.100.7", "DE", ThroughVpn: true, IsCurrent: false),
+                new HistoryRow(older.SeenAt.ToString("g"), "192.0.2.81", "ES", ThroughVpn: false, IsCurrent: false),
             ],
             viewModel.History);
-        Assert.Equal("HistoryHeader(3)", viewModel.HistoryHeader);
     }
 
     [Fact]
-    public void Notification_setting_can_be_turned_off()
+    public void Records_the_vpn_with_the_address_and_notifies_the_change()
     {
-        MainViewModel viewModel = CreateViewModel();
-        Assert.True(viewModel.IsNotifyOnChangeOn);
+        MainViewModel viewModel = _fixture.CreateMain();
+        Publish("203.0.113.42", null);
 
-        viewModel.ToggleNotifyOnChangeCommand.Execute(null);
+        _fixture.LocalNetwork.Vpn = new VpnStatus(true, "NordLynx");
+        Publish("198.51.100.7", null, minutes: 5);
 
-        Assert.False(viewModel.IsNotifyOnChangeOn);
-        Assert.False(_settings.NotifyOnIpChange);
+        (IpHistoryEntry previous, IpHistoryEntry current) = Assert.Single(_fixture.Notifier.Notifications);
+        Assert.Null(previous.VpnName);
+        Assert.Equal("NordLynx", current.VpnName);
+        Assert.True(viewModel.Connection.IsVpnActive);
     }
 
-    private MainViewModel CreateViewModel(ILocalizer? localizer = null) =>
-        new(
-            _monitor,
-            new IpHistory(_historyStore, _notifier, _settings),
-            _startup,
-            _clipboard,
-            _settings,
-            localizer ?? new KeyLocalizer(),
-            _localNetwork,
-            _time);
+    [Fact]
+    public void Showing_the_flyout_reads_the_network_again()
+    {
+        MainViewModel viewModel = _fixture.CreateMain();
+        _fixture.LocalNetwork.Vpn = new VpnStatus(true, "WireGuard");
+
+        viewModel.OnFlyoutVisibilityChanged(visible: true);
+
+        Assert.Equal("VpnOn(WireGuard)", viewModel.Connection.VpnText);
+    }
+
+    private void Publish(string? ipv4, string? ipv6, int minutes = 0) =>
+        _fixture.Monitor.Publish(new IpSnapshot(IpLookupStatus.Ok, ipv4, ipv6, Now.AddMinutes(minutes), IsRefreshing: false));
+
+    /// <summary>Gets the country name the same way the app does, whatever the culture of the test machine.</summary>
+    private sealed record GeoInfoProbe(string Code)
+    {
+        public string CountryName => new Geo.GeoInfo(Code, null, null, null).CountryName;
+    }
 
     private sealed class LongLocalizer : ILocalizer
     {

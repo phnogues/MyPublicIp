@@ -1,5 +1,6 @@
 using System.Net;
 using MyPublicIp.Core.Abstractions;
+using MyPublicIp.Core.LocalNetwork;
 using MyPublicIp.Core.PublicIp;
 
 namespace MyPublicIp.Core.History;
@@ -16,12 +17,12 @@ public sealed class IpHistory
     private const int IPv6PrefixLength = 64;
 
     private readonly IIpHistoryStore _store;
-    private readonly IIpChangeNotifier _notifier;
+    private readonly IUserNotifier _notifier;
     private readonly IAppSettings _settings;
     private readonly List<IpHistoryEntry> _entries;
     private bool _observedThisSession;
 
-    public IpHistory(IIpHistoryStore store, IIpChangeNotifier notifier, IAppSettings settings)
+    public IpHistory(IIpHistoryStore store, IUserNotifier notifier, IAppSettings settings)
     {
         _store = store;
         _notifier = notifier;
@@ -35,17 +36,18 @@ public sealed class IpHistory
     public IReadOnlyList<IpHistoryEntry> Entries => _entries;
 
     /// <summary>
-    /// Takes into account the result of a complete lookup. The first result of a session is only
-    /// recorded: a notification at every login because the address changed overnight would be noise.
+    /// Takes into account the result of a complete lookup, with the VPN connected at that time.
+    /// The first result of a session is only recorded: a notification at every login because the
+    /// address changed overnight would be noise.
     /// </summary>
-    public void Observe(IpSnapshot snapshot)
+    public void Observe(IpSnapshot snapshot, VpnStatus vpn)
     {
         if (snapshot.Status != IpLookupStatus.Ok || snapshot.IsRefreshing || snapshot.UpdatedAt is not { } seenAt)
         {
             return;
         }
 
-        var current = new IpHistoryEntry(seenAt, snapshot.IPv4, snapshot.IPv6);
+        var current = new IpHistoryEntry(seenAt, snapshot.IPv4, snapshot.IPv6, vpn.IsActive ? vpn.Name : null);
         IpHistoryEntry? previous = _entries.FirstOrDefault();
         bool firstOfSession = !_observedThisSession;
         _observedThisSession = true;
@@ -65,9 +67,23 @@ public sealed class IpHistory
 
         if (previous is not null && !firstOfSession && _settings.NotifyOnIpChange)
         {
-            _notifier.NotifyChanged(previous, current);
+            _notifier.NotifyIpChanged(previous, current);
         }
 
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Adds the country of an address once the geolocation service has answered.</summary>
+    public void SetCountry(string address, string countryCode)
+    {
+        int index = _entries.FindIndex(e => e.MainAddress == address && e.CountryCode != countryCode);
+        if (index < 0)
+        {
+            return;
+        }
+
+        _entries[index] = _entries[index] with { CountryCode = countryCode };
+        _store.Save(_entries);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

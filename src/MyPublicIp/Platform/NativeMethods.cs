@@ -36,6 +36,10 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool AllowSetForegroundWindow(uint processId);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DestroyIcon(nint icon);
+
     /// <summary>Display scale factor (1.0 = 96 DPI) of the monitor containing the point.</summary>
     public static double GetScaleAt(POINT point)
     {

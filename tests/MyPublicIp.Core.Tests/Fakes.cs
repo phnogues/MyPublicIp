@@ -3,7 +3,9 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using MyPublicIp.Core.Abstractions;
+using MyPublicIp.Core.Geo;
 using MyPublicIp.Core.History;
+using MyPublicIp.Core.Latency;
 using MyPublicIp.Core.LocalNetwork;
 using MyPublicIp.Core.PublicIp;
 
@@ -97,6 +99,8 @@ internal sealed class FakeSettings : IAppSettings
     public bool PinTipDismissed { get; set; }
 
     public bool NotifyOnIpChange { get; set; } = true;
+
+    public bool HotkeyEnabled { get; set; } = true;
 }
 
 internal sealed class FakeHistoryStore(params IpHistoryEntry[] saved) : IIpHistoryStore
@@ -114,18 +118,84 @@ internal sealed class FakeHistoryStore(params IpHistoryEntry[] saved) : IIpHisto
     }
 }
 
-internal sealed class FakeNotifier : IIpChangeNotifier
+internal sealed class FakeNotifier : IUserNotifier
 {
     public List<(IpHistoryEntry Previous, IpHistoryEntry Current)> Notifications { get; } = [];
 
-    public void NotifyChanged(IpHistoryEntry previous, IpHistoryEntry current) => Notifications.Add((previous, current));
+    public List<string> Copied { get; } = [];
+
+    public void NotifyIpChanged(IpHistoryEntry previous, IpHistoryEntry current) => Notifications.Add((previous, current));
+
+    public void NotifyCopied(string address) => Copied.Add(address);
 }
 
 internal sealed class FakeLocalNetwork : ILocalNetworkInfo
 {
-    public LocalAddress? Address { get; set; } = new("192.168.1.42", "Wi-Fi");
+    public NetworkDetails? Details { get; set; } = new(
+        "Wi-Fi", "Intel(R) Wi-Fi 6 AX201", ConnectionKind.WiFi, "192.168.1.42", "192.168.1.1",
+        ["192.168.1.1", "1.1.1.1"], "00:15:5D:12:34:56", 866_000_000)
+    {
+        NetworkName = "Home-5G",
+        SignalBars = 4,
+    };
 
-    public LocalAddress? GetPrimaryIPv4() => Address;
+    public VpnStatus Vpn { get; set; } = VpnStatus.Off;
+
+    public NetworkDetails? GetPrimaryNetwork() => Details;
+
+    public VpnStatus GetVpnStatus() => Vpn;
+}
+
+internal sealed class FakeGeoLocator : IGeoLocator
+{
+    public Dictionary<string, GeoInfo> Known { get; } = new()
+    {
+        ["203.0.113.42"] = new GeoInfo("FR", "Paris", "Île-de-France", "Aurora Telecom"),
+        ["198.51.100.7"] = new GeoInfo("DE", "Frankfurt am Main", "Hesse", "Nimbus VPN"),
+    };
+
+    public List<string> Requests { get; } = [];
+
+    public Task<GeoInfo?> LocateAsync(string address, CancellationToken cancellationToken)
+    {
+        Requests.Add(address);
+        return Task.FromResult(Known.GetValueOrDefault(address));
+    }
+}
+
+internal sealed class FakeLatencyProbe : ILatencyProbe
+{
+    private readonly ConcurrentQueue<TimeSpan?> _answers = new();
+
+    public TimeSpan? Default { get; set; } = TimeSpan.FromMilliseconds(18);
+
+    public void Enqueue(params TimeSpan?[] answers)
+    {
+        foreach (TimeSpan? answer in answers)
+        {
+            _answers.Enqueue(answer);
+        }
+    }
+
+    public Task<TimeSpan?> MeasureAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(_answers.TryDequeue(out TimeSpan? answer) ? answer : Default);
+}
+
+internal sealed class FakeHotkey : IGlobalHotkey
+{
+    public event EventHandler? Pressed;
+
+    public bool Available { get; set; } = true;
+
+    public bool IsRegistered { get; private set; }
+
+    public string DisplayText => "Win + Shift + I";
+
+    public bool TryRegister() => IsRegistered = Available;
+
+    public void Unregister() => IsRegistered = false;
+
+    public void Press() => Pressed?.Invoke(this, EventArgs.Empty);
 }
 
 /// <summary>Returns the key itself, or "key(arg1|arg2)" when formatting.</summary>

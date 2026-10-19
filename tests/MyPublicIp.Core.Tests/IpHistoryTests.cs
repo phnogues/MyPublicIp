@@ -1,4 +1,5 @@
 using MyPublicIp.Core.History;
+using MyPublicIp.Core.LocalNetwork;
 using MyPublicIp.Core.PublicIp;
 
 namespace MyPublicIp.Core.Tests;
@@ -16,7 +17,7 @@ public sealed class IpHistoryTests
     {
         IpHistory history = CreateHistory();
 
-        history.Observe(Ok("203.0.113.42", minutes: 0));
+        history.Observe(Ok("203.0.113.42", minutes: 0), VpnStatus.Off);
 
         Assert.Equal("203.0.113.42", Assert.Single(history.Entries).IPv4);
         Assert.Empty(_notifier.Notifications);
@@ -27,9 +28,9 @@ public sealed class IpHistoryTests
     public void Notifies_when_the_address_changes_during_the_session()
     {
         IpHistory history = CreateHistory();
-        history.Observe(Ok("203.0.113.42", minutes: 0));
+        history.Observe(Ok("203.0.113.42", minutes: 0), VpnStatus.Off);
 
-        history.Observe(Ok("198.51.100.7", minutes: 5));
+        history.Observe(Ok("198.51.100.7", minutes: 5), VpnStatus.Off);
 
         Assert.Equal(["198.51.100.7", "203.0.113.42"], history.Entries.Select(e => e.IPv4));
         (IpHistoryEntry previous, IpHistoryEntry current) = Assert.Single(_notifier.Notifications);
@@ -41,9 +42,9 @@ public sealed class IpHistoryTests
     public void Ignores_the_same_address()
     {
         IpHistory history = CreateHistory();
-        history.Observe(Ok("203.0.113.42", minutes: 0));
+        history.Observe(Ok("203.0.113.42", minutes: 0), VpnStatus.Off);
 
-        history.Observe(Ok("203.0.113.42", minutes: 15));
+        history.Observe(Ok("203.0.113.42", minutes: 15), VpnStatus.Off);
 
         Assert.Single(history.Entries);
         Assert.Equal(1, _store.SaveCount);
@@ -53,10 +54,10 @@ public sealed class IpHistoryTests
     public void Ignores_a_new_IPv6_address_in_the_same_network()
     {
         IpHistory history = CreateHistory();
-        history.Observe(Ok("203.0.113.42", minutes: 0, ipv6: "2001:db8:85a3:1:a1b2:c3d4:e5f6:1"));
+        history.Observe(Ok("203.0.113.42", minutes: 0, ipv6: "2001:db8:85a3:1:a1b2:c3d4:e5f6:1"), VpnStatus.Off);
 
         // Privacy extensions: same /64 prefix, new interface identifier
-        history.Observe(Ok("203.0.113.42", minutes: 60, ipv6: "2001:db8:85a3:1:9f8e:7d6c:5b4a:2"));
+        history.Observe(Ok("203.0.113.42", minutes: 60, ipv6: "2001:db8:85a3:1:9f8e:7d6c:5b4a:2"), VpnStatus.Off);
 
         Assert.Single(history.Entries);
         Assert.Empty(_notifier.Notifications);
@@ -66,9 +67,9 @@ public sealed class IpHistoryTests
     public void Records_a_new_IPv6_network()
     {
         IpHistory history = CreateHistory();
-        history.Observe(Ok("203.0.113.42", minutes: 0, ipv6: "2001:db8:85a3:1::1"));
+        history.Observe(Ok("203.0.113.42", minutes: 0, ipv6: "2001:db8:85a3:1::1"), VpnStatus.Off);
 
-        history.Observe(Ok("203.0.113.42", minutes: 60, ipv6: "2001:db8:ffff:2::1"));
+        history.Observe(Ok("203.0.113.42", minutes: 60, ipv6: "2001:db8:ffff:2::1"), VpnStatus.Off);
 
         Assert.Equal(2, history.Entries.Count);
         Assert.Single(_notifier.Notifications);
@@ -80,7 +81,7 @@ public sealed class IpHistoryTests
         _store.Save([new IpHistoryEntry(Now.AddDays(-1), "198.51.100.7", null)]);
         IpHistory history = CreateHistory();
 
-        history.Observe(Ok("203.0.113.42", minutes: 0));
+        history.Observe(Ok("203.0.113.42", minutes: 0), VpnStatus.Off);
 
         Assert.Equal(["203.0.113.42", "198.51.100.7"], history.Entries.Select(e => e.IPv4));
         Assert.Empty(_notifier.Notifications);
@@ -91,9 +92,9 @@ public sealed class IpHistoryTests
     {
         _settings.NotifyOnIpChange = false;
         IpHistory history = CreateHistory();
-        history.Observe(Ok("203.0.113.42", minutes: 0));
+        history.Observe(Ok("203.0.113.42", minutes: 0), VpnStatus.Off);
 
-        history.Observe(Ok("198.51.100.7", minutes: 5));
+        history.Observe(Ok("198.51.100.7", minutes: 5), VpnStatus.Off);
 
         Assert.Equal(2, history.Entries.Count);
         Assert.Empty(_notifier.Notifications);
@@ -107,7 +108,7 @@ public sealed class IpHistoryTests
     {
         IpHistory history = CreateHistory();
 
-        history.Observe(new IpSnapshot(status, null, null, Now, IsRefreshing: false));
+        history.Observe(new IpSnapshot(status, null, null, Now, IsRefreshing: false), VpnStatus.Off);
 
         Assert.Empty(history.Entries);
     }
@@ -118,7 +119,7 @@ public sealed class IpHistoryTests
         IpHistory history = CreateHistory();
 
         // IPv4 is published while IPv6 is still being looked up
-        history.Observe(new IpSnapshot(IpLookupStatus.Ok, "203.0.113.42", null, Now, IsRefreshing: true));
+        history.Observe(new IpSnapshot(IpLookupStatus.Ok, "203.0.113.42", null, Now, IsRefreshing: true), VpnStatus.Off);
 
         Assert.Empty(history.Entries);
     }
@@ -130,12 +131,38 @@ public sealed class IpHistoryTests
 
         for (int i = 0; i < IpHistory.MaxEntries + 5; i++)
         {
-            history.Observe(Ok($"203.0.113.{i}", minutes: i));
+            history.Observe(Ok($"203.0.113.{i}", minutes: i), VpnStatus.Off);
         }
 
         Assert.Equal(IpHistory.MaxEntries, history.Entries.Count);
         Assert.Equal($"203.0.113.{IpHistory.MaxEntries + 4}", history.Entries[0].IPv4);
         Assert.Equal(IpHistory.MaxEntries, _store.Saved.Count);
+    }
+
+    [Fact]
+    public void Records_the_vpn_connected_with_each_address()
+    {
+        IpHistory history = CreateHistory();
+        history.Observe(Ok("203.0.113.42", minutes: 0), VpnStatus.Off);
+
+        history.Observe(Ok("198.51.100.7", minutes: 5), new VpnStatus(true, "NordLynx"));
+
+        Assert.Equal(["NordLynx", null], history.Entries.Select(e => e.VpnName));
+        Assert.Equal("NordLynx", Assert.Single(_notifier.Notifications).Current.VpnName);
+    }
+
+    [Fact]
+    public void Adds_the_country_once_it_is_known()
+    {
+        IpHistory history = CreateHistory();
+        history.Observe(Ok("203.0.113.42", minutes: 0), VpnStatus.Off);
+        int saves = _store.SaveCount;
+
+        history.SetCountry("203.0.113.42", "FR");
+        history.SetCountry("203.0.113.42", "FR");
+
+        Assert.Equal("FR", history.Entries[0].CountryCode);
+        Assert.Equal(saves + 1, _store.SaveCount);
     }
 
     private static IpSnapshot Ok(string ipv4, int minutes, string? ipv6 = null) =>

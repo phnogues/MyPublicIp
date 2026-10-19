@@ -12,7 +12,7 @@
   <Identity
     Name="16566phsoftwares.MyPublicIPAddress"
     Publisher="CN=1367212D-3E68-4FC7-B64A-7EE72497F4A7"
-    Version="2.0.0.0" />
+    Version="2.1.0.0" />
 
   <Properties>
     <DisplayName>My Public IP Address</DisplayName>

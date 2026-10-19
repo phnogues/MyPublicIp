@@ -12,18 +12,35 @@
 
     <!-- The Canvas measures its child with an unlimited height: Root.ActualHeight is the height the window needs -->
     <Canvas>
-        <StackPanel x:Name="Root" Width="340" Padding="20,16,20,16" Spacing="14" KeyboardAcceleratorPlacementMode="Hidden">
+        <StackPanel x:Name="Root" Width="380" Padding="20,14,20,18" Spacing="12" KeyboardAcceleratorPlacementMode="Hidden">
             <StackPanel.Resources>
                 <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
                     <Setter Property="Background" Value="Transparent" />
                     <Setter Property="BorderBrush" Value="Transparent" />
-                    <Setter Property="Width" Value="36" />
-                    <Setter Property="Height" Value="36" />
+                    <Setter Property="Width" Value="34" />
+                    <Setter Property="Height" Value="34" />
                     <Setter Property="Padding" Value="0" />
                     <Setter Property="VerticalAlignment" Value="Center" />
                 </Style>
                 <Style x:Key="LabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
                     <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Style>
+                <Style x:Key="ValueTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+                    <Setter Property="IsTextSelectionEnabled" Value="True" />
+                    <Setter Property="TextWrapping" Value="Wrap" />
+                </Style>
+                <Style x:Key="CardStyle" TargetType="Border">
+                    <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                    <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="8" />
+                    <Setter Property="Padding" Value="12,10" />
+                </Style>
+                <Style x:Key="CountryBadgeStyle" TargetType="Border">
+                    <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                    <Setter Property="CornerRadius" Value="4" />
+                    <Setter Property="Padding" Value="5,1" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
                 </Style>
             </StackPanel.Resources>
             <StackPanel.KeyboardAccelerators>
@@ -40,7 +57,7 @@
                     <TextBlock x:Uid="HeaderText" Style="{StaticResource BodyStrongTextBlockStyle}" />
                     <TextBlock Style="{StaticResource LabelTextStyle}" Text="{x:Bind ViewModel.UpdatedText, Mode=OneWay}" />
                 </StackPanel>
-                <Grid Grid.Column="1" Width="36" Height="36">
+                <Grid Grid.Column="1" Width="34" Height="34">
                     <Button
                         x:Uid="RefreshButton"
                         Style="{StaticResource IconButtonStyle}"
@@ -52,96 +69,221 @@
                 </Grid>
             </Grid>
 
-            <!-- IPv4 -->
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Style="{StaticResource LabelTextStyle}" Text="IPv4" />
-                    <TextBlock
-                        Style="{StaticResource SubtitleTextBlockStyle}"
-                        IsTextSelectionEnabled="True"
-                        Text="{x:Bind ViewModel.IPv4Text, Mode=OneWay}" />
-                </StackPanel>
-                <Button
-                    x:Uid="CopyIPv4Button"
-                    Grid.Column="1"
-                    Style="{StaticResource IconButtonStyle}"
-                    Command="{x:Bind ViewModel.CopyIPv4Command}"
-                    Visibility="{x:Bind ViewModel.HasIPv4, Mode=OneWay}">
-                    <FontIcon Glyph="{x:Bind views:Converters.CopyGlyphFor(ViewModel.IsIPv4Copied), Mode=OneWay}" FontSize="16" />
-                </Button>
-            </Grid>
+            <SelectorBar x:Name="Tabs" Margin="-8,-6,-8,0" SelectionChanged="OnTabChanged">
+                <SelectorBarItem x:Uid="TabOverview" Tag="Overview" IsSelected="True" />
+                <SelectorBarItem x:Uid="TabNetwork" Tag="Network" />
+                <SelectorBarItem x:Uid="TabHistory" Tag="History" />
+                <SelectorBarItem x:Uid="TabSettings" Tag="Settings" />
+            </SelectorBar>
 
-            <!-- IPv6 -->
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Style="{StaticResource LabelTextStyle}" Text="IPv6" />
-                    <TextBlock
-                        Style="{StaticResource BodyTextBlockStyle}"
-                        IsTextSelectionEnabled="True"
-                        TextWrapping="Wrap"
-                        Text="{x:Bind ViewModel.IPv6Text, Mode=OneWay}" />
-                </StackPanel>
-                <Button
-                    x:Uid="CopyIPv6Button"
-                    Grid.Column="1"
-                    Style="{StaticResource IconButtonStyle}"
-                    Command="{x:Bind ViewModel.CopyIPv6Command}"
-                    Visibility="{x:Bind ViewModel.HasIPv6, Mode=OneWay}">
-                    <FontIcon Glyph="{x:Bind views:Converters.CopyGlyphFor(ViewModel.IsIPv6Copied), Mode=OneWay}" FontSize="16" />
-                </Button>
-            </Grid>
+            <!-- Overview -->
+            <StackPanel x:Name="OverviewPanel" Spacing="12">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="2">
+                        <TextBlock Style="{StaticResource LabelTextStyle}" Text="IPv4" />
+                        <TextBlock Style="{StaticResource TitleTextBlockStyle}" IsTextSelectionEnabled="True" Text="{x:Bind ViewModel.IPv4Text, Mode=OneWay}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.Connection.HasLocation, Mode=OneWay}">
+                            <Border Style="{StaticResource CountryBadgeStyle}">
+                                <TextBlock
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    FontWeight="SemiBold"
+                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.Connection.CountryCode, Mode=OneWay}" />
+                            </Border>
+                            <TextBlock
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                VerticalAlignment="Center"
+                                TextTrimming="CharacterEllipsis"
+                                MaxWidth="250"
+                                Text="{x:Bind ViewModel.Connection.LocationText, Mode=OneWay}" />
+                        </StackPanel>
+                        <TextBlock
+                            Style="{StaticResource LabelTextStyle}"
+                            Text="{x:Bind ViewModel.Connection.ProviderText, Mode=OneWay}"
+                            Visibility="{x:Bind ViewModel.Connection.HasLocation, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button
+                        x:Uid="CopyIPv4Button"
+                        Grid.Column="1"
+                        VerticalAlignment="Top"
+                        Margin="0,14,0,0"
+                        Style="{StaticResource IconButtonStyle}"
+                        Command="{x:Bind ViewModel.CopyIPv4Command}"
+                        Visibility="{x:Bind ViewModel.HasIPv4, Mode=OneWay}">
+                        <FontIcon Glyph="{x:Bind views:Converters.CopyGlyph(ViewModel.CopiedItem, 'ipv4'), Mode=OneWay}" FontSize="16" />
+                    </Button>
+                </Grid>
 
-            <!-- Local network -->
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Style="{StaticResource LabelTextStyle}" Text="{x:Bind ViewModel.LocalNetworkLabel, Mode=OneWay}" />
-                    <TextBlock
-                        Style="{StaticResource BodyTextBlockStyle}"
-                        IsTextSelectionEnabled="True"
-                        Text="{x:Bind ViewModel.LocalIPv4Text, Mode=OneWay}" />
-                </StackPanel>
-                <Button
-                    x:Uid="CopyLocalButton"
-                    Grid.Column="1"
-                    Style="{StaticResource IconButtonStyle}"
-                    Command="{x:Bind ViewModel.CopyLocalIPv4Command}"
-                    Visibility="{x:Bind ViewModel.HasLocalIPv4, Mode=OneWay}">
-                    <FontIcon Glyph="{x:Bind views:Converters.CopyGlyphFor(ViewModel.IsLocalIPv4Copied), Mode=OneWay}" FontSize="16" />
-                </Button>
-            </Grid>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource LabelTextStyle}" Text="IPv6" />
+                        <TextBlock Style="{StaticResource ValueTextStyle}" Text="{x:Bind ViewModel.IPv6Text, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button
+                        x:Uid="CopyIPv6Button"
+                        Grid.Column="1"
+                        Style="{StaticResource IconButtonStyle}"
+                        Command="{x:Bind ViewModel.CopyIPv6Command}"
+                        Visibility="{x:Bind ViewModel.HasIPv6, Mode=OneWay}">
+                        <FontIcon Glyph="{x:Bind views:Converters.CopyGlyph(ViewModel.CopiedItem, 'ipv6'), Mode=OneWay}" FontSize="16" />
+                    </Button>
+                </Grid>
 
-            <!-- Recent public addresses -->
-            <Expander
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Stretch"
-                Header="{x:Bind ViewModel.HistoryHeader, Mode=OneWay}"
-                Visibility="{x:Bind ViewModel.HasHistory, Mode=OneWay}">
+                <!-- VPN and connection quality -->
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon
+                                    Glyph="{x:Bind views:Converters.VpnGlyph(ViewModel.Connection.IsVpnActive), Mode=OneWay}"
+                                    Foreground="{x:Bind views:Converters.VpnBrush(ViewModel.Connection.IsVpnActive), Mode=OneWay}"
+                                    FontSize="14" />
+                                <TextBlock x:Uid="LabelVpn" Style="{StaticResource LabelTextStyle}" />
+                            </StackPanel>
+                            <TextBlock
+                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                TextWrapping="Wrap"
+                                Text="{x:Bind ViewModel.Connection.VpnText, Mode=OneWay}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon
+                                    Glyph="&#xEC4A;"
+                                    Foreground="{x:Bind views:Converters.QualityBrush(ViewModel.Connection.Quality), Mode=OneWay}"
+                                    FontSize="14" />
+                                <TextBlock x:Uid="LabelLatency" Style="{StaticResource LabelTextStyle}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind ViewModel.Connection.LatencyText, Mode=OneWay}" />
+                            <Polyline
+                                Height="22"
+                                Stroke="{x:Bind views:Converters.QualityBrush(ViewModel.Connection.Quality), Mode=OneWay}"
+                                StrokeThickness="1.5"
+                                StrokeLineJoin="Round"
+                                Points="{x:Bind views:Converters.Sparkline(ViewModel.Connection.LatencyHistory, 140, 20), Mode=OneWay}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- A closed InfoBar keeps its place in the StackPanel spacing: collapse it as well -->
+                <InfoBar
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.IsStatusOpen, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.IsStatusOpen, Mode=OneWay}"
+                    Severity="{x:Bind views:Converters.SeverityFor(ViewModel.Status), Mode=OneWay}"
+                    Title="{x:Bind ViewModel.StatusTitle, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" />
+
+                <InfoBar
+                    x:Uid="PinTipInfoBar"
+                    Severity="Informational"
+                    IsClosable="True"
+                    IsOpen="{x:Bind ViewModel.Settings.IsPinTipOpen, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.Settings.IsPinTipOpen, Mode=OneWay}"
+                    CloseButtonCommand="{x:Bind ViewModel.Settings.DismissPinTipCommand}" />
+            </StackPanel>
+
+            <!-- Network -->
+            <StackPanel x:Name="NetworkPanel" Spacing="10" Visibility="Collapsed">
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel Spacing="2">
+                        <TextBlock x:Uid="LabelConnection" Style="{StaticResource LabelTextStyle}" />
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" Text="{x:Bind ViewModel.Network.ConnectionText, Mode=OneWay}" />
+                        <TextBlock
+                            Style="{StaticResource LabelTextStyle}"
+                            Text="{x:Bind views:Converters.SignalText(ViewModel.Network.SignalBars), Mode=OneWay}"
+                            Visibility="{x:Bind ViewModel.Network.HasSignal, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource LabelTextStyle}" TextWrapping="Wrap" Text="{x:Bind ViewModel.Network.AdapterText, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+
+                <Grid ColumnSpacing="8" RowSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel>
+                        <TextBlock x:Uid="LabelLocalIPv4" Style="{StaticResource LabelTextStyle}" />
+                        <TextBlock Style="{StaticResource ValueTextStyle}" Text="{x:Bind ViewModel.Network.LocalIPv4, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button x:Uid="CopyLocalButton" Grid.Column="1" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.Network.CopyCommand}" CommandParameter="local">
+                        <FontIcon Glyph="{x:Bind views:Converters.CopyGlyph(ViewModel.Network.CopiedItem, 'local'), Mode=OneWay}" FontSize="16" />
+                    </Button>
+
+                    <StackPanel Grid.Row="1">
+                        <TextBlock x:Uid="LabelGateway" Style="{StaticResource LabelTextStyle}" />
+                        <TextBlock Style="{StaticResource ValueTextStyle}" Text="{x:Bind ViewModel.Network.Gateway, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button x:Uid="CopyGatewayButton" Grid.Row="1" Grid.Column="1" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.Network.CopyCommand}" CommandParameter="gateway">
+                        <FontIcon Glyph="{x:Bind views:Converters.CopyGlyph(ViewModel.Network.CopiedItem, 'gateway'), Mode=OneWay}" FontSize="16" />
+                    </Button>
+
+                    <StackPanel Grid.Row="2">
+                        <TextBlock x:Uid="LabelDns" Style="{StaticResource LabelTextStyle}" />
+                        <TextBlock Style="{StaticResource ValueTextStyle}" Text="{x:Bind ViewModel.Network.DnsServers, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button x:Uid="CopyDnsButton" Grid.Row="2" Grid.Column="1" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.Network.CopyCommand}" CommandParameter="dns">
+                        <FontIcon Glyph="{x:Bind views:Converters.CopyGlyph(ViewModel.Network.CopiedItem, 'dns'), Mode=OneWay}" FontSize="16" />
+                    </Button>
+
+                    <StackPanel Grid.Row="3">
+                        <TextBlock x:Uid="LabelMac" Style="{StaticResource LabelTextStyle}" />
+                        <TextBlock Style="{StaticResource ValueTextStyle}" Text="{x:Bind ViewModel.Network.MacAddress, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button x:Uid="CopyMacButton" Grid.Row="3" Grid.Column="1" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.Network.CopyCommand}" CommandParameter="mac">
+                        <FontIcon Glyph="{x:Bind views:Converters.CopyGlyph(ViewModel.Network.CopiedItem, 'mac'), Mode=OneWay}" FontSize="16" />
+                    </Button>
+                </Grid>
+            </StackPanel>
+
+            <!-- History -->
+            <StackPanel x:Name="HistoryPanel" Spacing="8" Visibility="Collapsed">
+                <TextBlock
+                    x:Uid="HistoryEmpty"
+                    Style="{StaticResource LabelTextStyle}"
+                    Visibility="{x:Bind views:Converters.CollapsedWhen(ViewModel.HasHistory), Mode=OneWay}" />
                 <ItemsRepeater ItemsSource="{x:Bind ViewModel.History, Mode=OneWay}">
                     <ItemsRepeater.Layout>
-                        <StackLayout Spacing="6" />
+                        <StackLayout Spacing="2" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:HistoryRow">
-                            <Grid ColumnSpacing="12">
+                            <Grid ColumnSpacing="10" Padding="10,7" CornerRadius="6" Background="{x:Bind views:Converters.RowBackground(IsCurrent)}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" Text="{x:Bind When}" />
+                                <FontIcon Grid.Column="1" Glyph="&#xEA18;" FontSize="12" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Visibility="{x:Bind ThroughVpn}" />
+                                <Border Grid.Column="2" Style="{StaticResource CountryBadgeStyle}" Visibility="{x:Bind views:Converters.HasText(CountryCode)}">
+                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Text="{x:Bind CountryCode}" />
+                                </Border>
                                 <TextBlock
-                                    Grid.Column="1"
+                                    Grid.Column="3"
+                                    MinWidth="110"
+                                    TextAlignment="Right"
                                     IsTextSelectionEnabled="True"
                                     FontWeight="{x:Bind views:Converters.WeightFor(IsCurrent)}"
                                     Text="{x:Bind Address}" />
@@ -149,40 +291,38 @@
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
-            </Expander>
+            </StackPanel>
 
-            <!-- A closed InfoBar keeps its place in the StackPanel spacing: collapse it as well -->
-            <InfoBar
-                IsClosable="False"
-                IsOpen="{x:Bind ViewModel.IsStatusOpen, Mode=OneWay}"
-                Visibility="{x:Bind ViewModel.IsStatusOpen, Mode=OneWay}"
-                Severity="{x:Bind views:Converters.SeverityFor(ViewModel.Status), Mode=OneWay}"
-                Title="{x:Bind ViewModel.StatusTitle, Mode=OneWay}"
-                Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" />
-
-            <InfoBar
-                x:Uid="PinTipInfoBar"
-                Severity="Informational"
-                IsClosable="True"
-                IsOpen="{x:Bind ViewModel.IsPinTipOpen, Mode=OneWay}"
-                Visibility="{x:Bind ViewModel.IsPinTipOpen, Mode=OneWay}"
-                CloseButtonCommand="{x:Bind ViewModel.DismissPinTipCommand}" />
-
-            <Border Height="1" Margin="-20,0" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-            <CheckBox
-                x:Uid="StartupCheckBox"
-                Visibility="{x:Bind ViewModel.IsStartupAvailable, Mode=OneWay}"
-                IsChecked="{x:Bind ViewModel.IsStartupOn, Mode=OneWay}"
-                IsEnabled="{x:Bind ViewModel.CanChangeStartup, Mode=OneWay}"
-                ToolTipService.ToolTip="{x:Bind ViewModel.StartupToolTip, Mode=OneWay}"
-                Command="{x:Bind ViewModel.ToggleStartupCommand}" />
-
-            <CheckBox
-                x:Uid="NotifyCheckBox"
-                Margin="0,-8,0,0"
-                IsChecked="{x:Bind ViewModel.IsNotifyOnChangeOn, Mode=OneWay}"
-                Command="{x:Bind ViewModel.ToggleNotifyOnChangeCommand}" />
+            <!-- Settings -->
+            <StackPanel x:Name="SettingsPanel" Spacing="4" Visibility="Collapsed">
+                <CheckBox
+                    x:Uid="StartupCheckBox"
+                    Visibility="{x:Bind ViewModel.Settings.IsStartupAvailable, Mode=OneWay}"
+                    IsChecked="{x:Bind ViewModel.Settings.IsStartupOn, Mode=OneWay}"
+                    IsEnabled="{x:Bind ViewModel.Settings.CanChangeStartup, Mode=OneWay}"
+                    ToolTipService.ToolTip="{x:Bind ViewModel.Settings.StartupToolTip, Mode=OneWay}"
+                    Command="{x:Bind ViewModel.Settings.ToggleStartupCommand}" />
+                <CheckBox
+                    x:Uid="NotifyCheckBox"
+                    IsChecked="{x:Bind ViewModel.Settings.IsNotifyOnChangeOn, Mode=OneWay}"
+                    Command="{x:Bind ViewModel.Settings.ToggleNotifyOnChangeCommand}" />
+                <CheckBox
+                    IsChecked="{x:Bind ViewModel.Settings.IsHotkeyOn, Mode=OneWay}"
+                    Command="{x:Bind ViewModel.Settings.ToggleHotkeyCommand}">
+                    <StackPanel>
+                        <TextBlock x:Uid="HotkeyCheckBoxText" />
+                        <TextBlock Style="{StaticResource LabelTextStyle}" Text="{x:Bind ViewModel.Settings.HotkeyText}" />
+                        <TextBlock
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                            Text="{x:Bind ViewModel.Settings.HotkeyProblem, Mode=OneWay}"
+                            Visibility="{x:Bind views:Converters.HasText(ViewModel.Settings.HotkeyProblem), Mode=OneWay}" />
+                    </StackPanel>
+                </CheckBox>
+                <Border Height="1" Margin="0,8" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <TextBlock x:Name="VersionText" Style="{StaticResource LabelTextStyle}" />
+                <HyperlinkButton x:Uid="PrivacyLink" Padding="0" NavigateUri="https://github.com/phnogues/MyPublicIp/blob/main/PRIVACY.md" />
+            </StackPanel>
         </StackPanel>
     </Canvas>
 </Window>

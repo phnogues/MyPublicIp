@@ -3,6 +3,7 @@ using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MyPublicIp.Core.Abstractions;
+using MyPublicIp.Core.Geo;
 using MyPublicIp.Core.History;
 using MyPublicIp.Core.LocalNetwork;
 using MyPublicIp.Core.PublicIp;
@@ -17,8 +18,9 @@ public enum StatusKind
 }
 
 /// <summary>
-/// State and actions shared by the flyout and the tray icon. Platform services are injected,
-/// so the whole behavior is unit tested without Windows.
+/// State and actions shared by the flyout and the tray icon: the public addresses, their history,
+/// and the child view models of the flyout tabs. Platform services are injected, so the whole
+/// behavior is unit tested without Windows.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -29,45 +31,51 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private readonly IPublicIpMonitor _monitor;
     private readonly IpHistory _history;
-    private readonly IStartupManager _startup;
-    private readonly IClipboard _clipboard;
-    private readonly IAppSettings _settings;
-    private readonly ILocalizer _localizer;
     private readonly ILocalNetworkInfo _localNetwork;
+    private readonly IClipboard _clipboard;
+    private readonly IUserNotifier _notifier;
+    private readonly ILocalizer _localizer;
     private readonly TimeProvider _time;
-    private readonly SynchronizationContext? _uiContext;
+    private readonly UiDispatcher _dispatcher = new();
     private IpSnapshot _snapshot = IpSnapshot.Initial;
-    private LocalAddress? _localAddress;
 
     public MainViewModel(
         IPublicIpMonitor monitor,
         IpHistory history,
-        IStartupManager startup,
-        IClipboard clipboard,
-        IAppSettings settings,
-        ILocalizer localizer,
         ILocalNetworkInfo localNetwork,
-        TimeProvider time)
+        IClipboard clipboard,
+        IUserNotifier notifier,
+        ILocalizer localizer,
+        TimeProvider time,
+        ConnectionViewModel connection,
+        NetworkViewModel network,
+        SettingsViewModel settings)
     {
         _monitor = monitor;
         _history = history;
-        _startup = startup;
-        _clipboard = clipboard;
-        _settings = settings;
-        _localizer = localizer;
         _localNetwork = localNetwork;
+        _clipboard = clipboard;
+        _notifier = notifier;
+        _localizer = localizer;
         _time = time;
+        Connection = connection;
+        Network = network;
+        Settings = settings;
 
-        // The monitor raises its events on background threads: bring them back to the UI thread
-        _uiContext = SynchronizationContext.Current;
         _monitor.Changed += OnMonitorChanged;
         _history.Changed += OnHistoryChanged;
+        Connection.PropertyChanged += OnConnectionChanged;
+        Settings.HotkeyPressed += OnHotkeyPressed;
 
-        IsPinTipOpen = !settings.PinTipDismissed;
-        IsNotifyOnChangeOn = settings.NotifyOnIpChange;
         UpdateHistory();
         Apply(monitor.Current);
     }
+
+    public ConnectionViewModel Connection { get; }
+
+    public NetworkViewModel Network { get; }
+
+    public SettingsViewModel Settings { get; }
 
     [ObservableProperty]
     public partial string IPv4Text { get; private set; } = string.Empty;
@@ -82,16 +90,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CopyIPv6Command))]
     public partial bool HasIPv6 { get; private set; }
-
-    [ObservableProperty]
-    public partial string LocalIPv4Text { get; private set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string LocalNetworkLabel { get; private set; } = string.Empty;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CopyLocalIPv4Command))]
-    public partial bool HasLocalIPv4 { get; private set; }
 
     [ObservableProperty]
     public partial string UpdatedText { get; private set; } = string.Empty;
@@ -111,142 +109,89 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string TrayToolTip { get; private set; } = string.Empty;
 
+    /// <summary>Key of the address just copied ("ipv4", "ipv6"), for the check mark on its button.</summary>
     [ObservableProperty]
-    public partial bool IsIPv4Copied { get; private set; }
-
-    [ObservableProperty]
-    public partial bool IsIPv6Copied { get; private set; }
-
-    [ObservableProperty]
-    public partial bool IsLocalIPv4Copied { get; private set; }
+    public partial string? CopiedItem { get; private set; }
 
     [ObservableProperty]
     public partial IReadOnlyList<HistoryRow> History { get; private set; } = [];
 
     [ObservableProperty]
-    public partial string HistoryHeader { get; private set; } = string.Empty;
-
-    [ObservableProperty]
     public partial bool HasHistory { get; private set; }
-
-    [ObservableProperty]
-    public partial bool IsNotifyOnChangeOn { get; private set; }
-
-    [ObservableProperty]
-    public partial bool IsPinTipOpen { get; private set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsStartupAvailable), nameof(IsStartupOn), nameof(CanChangeStartup), nameof(StartupToolTip))]
-    public partial StartupState StartupState { get; private set; }
 
     public bool IsStatusOpen => Status != StatusKind.None;
 
-    public bool IsStartupAvailable => StartupState != StartupState.Unsupported;
-
-    public bool IsStartupOn => StartupState.IsOn();
-
-    public bool CanChangeStartup => StartupState.CanChange();
-
-    public string? StartupToolTip => StartupState switch
+    public void OnFlyoutVisibilityChanged(bool visible)
     {
-        StartupState.DisabledByUser => _localizer.Get("StartupDisabledByUser"),
-        StartupState.DisabledByPolicy or StartupState.EnabledByPolicy => _localizer.Get("StartupManagedByPolicy"),
-        _ => null,
-    };
-
-    /// <summary>
-    /// First launch turns "Start with Windows" on: the user has just installed and opened the app,
-    /// and being there at every login is its purpose. A choice made in Windows Settings is respected.
-    /// </summary>
-    public async Task InitializeAsync()
-    {
-        if (!_settings.FirstRunDone)
+        if (visible)
         {
-            _settings.FirstRunDone = true;
-            if (await _startup.GetStateAsync() == StartupState.Disabled)
-            {
-                await _startup.SetEnabledAsync(true);
-            }
+            // The adapters or the VPN may have changed without a new public address
+            RefreshLocalNetwork();
+            _ = Settings.RefreshStartupStateAsync();
         }
 
-        await RefreshStartupStateAsync();
+        Connection.SetLive(visible);
     }
-
-    public async Task RefreshStartupStateAsync() => StartupState = await _startup.GetStateAsync();
 
     public void Dispose()
     {
         _monitor.Changed -= OnMonitorChanged;
         _history.Changed -= OnHistoryChanged;
+        Connection.PropertyChanged -= OnConnectionChanged;
+        Settings.HotkeyPressed -= OnHotkeyPressed;
     }
 
     [RelayCommand]
     private void Refresh() => _monitor.RequestRefresh();
 
     [RelayCommand(CanExecute = nameof(HasIPv4))]
-    private Task CopyIPv4Async() => CopyAsync(_snapshot.IPv4, copied => IsIPv4Copied = copied);
+    private Task CopyIPv4Async() => CopyAsync(_snapshot.IPv4, "ipv4");
 
     [RelayCommand(CanExecute = nameof(HasIPv6))]
-    private Task CopyIPv6Async() => CopyAsync(_snapshot.IPv6, copied => IsIPv6Copied = copied);
-
-    [RelayCommand(CanExecute = nameof(HasLocalIPv4))]
-    private Task CopyLocalIPv4Async() => CopyAsync(_localAddress?.Address, copied => IsLocalIPv4Copied = copied);
-
-    [RelayCommand]
-    private async Task ToggleStartupAsync()
-    {
-        StartupState = await _startup.SetEnabledAsync(!IsStartupOn);
-
-        // The request may be refused (turned off in Windows Settings, policy...): a check box
-        // that was just clicked must come back to the real state even if nothing changed
-        OnPropertyChanged(nameof(IsStartupOn));
-    }
-
-    [RelayCommand]
-    private void ToggleNotifyOnChange()
-    {
-        _settings.NotifyOnIpChange = !_settings.NotifyOnIpChange;
-        IsNotifyOnChangeOn = _settings.NotifyOnIpChange;
-    }
-
-    [RelayCommand]
-    private void DismissPinTip()
-    {
-        _settings.PinTipDismissed = true;
-        IsPinTipOpen = false;
-    }
+    private Task CopyIPv6Async() => CopyAsync(_snapshot.IPv6, "ipv6");
 
     partial void OnStatusChanged(StatusKind value) => OnPropertyChanged(new PropertyChangedEventArgs(nameof(IsStatusOpen)));
 
     /// <summary>Copies and shows a check mark on the button for a moment.</summary>
-    private async Task CopyAsync(string? text, Action<bool> setCopied)
+    private async Task CopyAsync(string? text, string item)
     {
         if (text is null || !_clipboard.TrySetText(text))
         {
             return;
         }
 
-        setCopied(true);
+        CopiedItem = item;
         await Task.Delay(CopiedFeedbackDuration, _time);
-        setCopied(false);
+        if (CopiedItem == item)
+        {
+            CopiedItem = null;
+        }
     }
 
-    private void OnMonitorChanged(object? sender, EventArgs e)
+    private void OnHotkeyPressed(object? sender, EventArgs e)
     {
-        if (_uiContext is null)
+        string? address = _snapshot.IPv4 ?? _snapshot.IPv6;
+        if (address is not null && _clipboard.TrySetText(address))
         {
-            Apply(_monitor.Current);
-        }
-        else
-        {
-            _uiContext.Post(_ => Apply(_monitor.Current), null);
+            _notifier.NotifyCopied(address);
         }
     }
+
+    private void OnMonitorChanged(object? sender, EventArgs e) => _dispatcher.Post(() => Apply(_monitor.Current));
 
     private void OnHistoryChanged(object? sender, EventArgs e) => UpdateHistory();
 
+    private void OnConnectionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ConnectionViewModel.LocationText) or nameof(ConnectionViewModel.VpnText))
+        {
+            TrayToolTip = BuildToolTip(_snapshot);
+        }
+    }
+
     private void Apply(IpSnapshot snapshot)
     {
+        bool addressChanged = snapshot.IPv4 != _snapshot.IPv4 || snapshot.IPv6 != _snapshot.IPv6;
         _snapshot = snapshot;
         bool lookingUp = snapshot.Status == IpLookupStatus.Pending;
 
@@ -266,26 +211,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _ => (StatusKind.None, string.Empty, string.Empty),
         };
 
-        // The local address changes with the same network events as the public one
-        _localAddress = _localNetwork.GetPrimaryIPv4();
-        HasLocalIPv4 = _localAddress is not null;
-        LocalIPv4Text = _localAddress?.Address ?? "—";
-        LocalNetworkLabel = _localAddress is null
-            ? _localizer.Get("LocalNetwork")
-            : _localizer.Format("LocalNetworkOn", _localAddress.InterfaceName);
-
+        // The adapters and the VPN change with the same network events as the public address
+        RefreshLocalNetwork();
+        _history.Observe(snapshot, Connection.Vpn);
         TrayToolTip = BuildToolTip(snapshot);
-        _history.Observe(snapshot);
+
+        if (addressChanged && !snapshot.IsRefreshing)
+        {
+            _ = LocateAsync(snapshot.IPv4 ?? snapshot.IPv6);
+        }
+    }
+
+    private void RefreshLocalNetwork()
+    {
+        Connection.UpdateVpn(_localNetwork.GetVpnStatus());
+        Network.Refresh();
+    }
+
+    private async Task LocateAsync(string? address)
+    {
+        GeoInfo? info = await Connection.LocateAsync(address);
+        if (address is not null && info is not null)
+        {
+            _history.SetCountry(address, info.CountryCode);
+        }
     }
 
     private void UpdateHistory()
     {
-        IReadOnlyList<IpHistoryEntry> entries = _history.Entries;
-        History = [.. entries
+        History = [.. _history.Entries
             .Where(e => e.MainAddress is not null)
-            .Select((e, index) => new HistoryRow(FormatWhen(e.SeenAt), e.MainAddress!, IsCurrent: index == 0))];
+            .Select((e, index) => new HistoryRow(
+                FormatWhen(e.SeenAt),
+                e.MainAddress!,
+                e.CountryCode ?? string.Empty,
+                e.VpnName is not null,
+                IsCurrent: index == 0))];
         HasHistory = History.Count > 0;
-        HistoryHeader = _localizer.Format("HistoryHeader", History.Count);
     }
 
     /// <summary>"14:32", "Yesterday 14:32" or the short date and time.</summary>
@@ -324,6 +286,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             text.Append('\n').Append(_localizer.Format("ToolTipLine", "IPv4", snapshot.IPv4));
         }
 
+        if (Connection.Location is { } location)
+        {
+            text.Append('\n').Append(location.Provider is null ? location.CountryName : $"{location.CountryName} · {location.Provider}");
+        }
+
+        if (Connection.Vpn is { IsActive: true } vpn)
+        {
+            text.Append('\n').Append(_localizer.Format("ToolTipVpn", vpn.Name ?? "VPN"));
+        }
+
+        // Last: the longest line, the one cut when the tooltip is too long
         if (snapshot.IPv6 is not null)
         {
             text.Append('\n').Append(_localizer.Format("ToolTipLine", "IPv6", snapshot.IPv6));

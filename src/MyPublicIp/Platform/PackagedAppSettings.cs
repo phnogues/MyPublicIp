@@ -24,6 +24,12 @@ internal sealed class PackagedAppSettings : IAppSettings
         set => Set(nameof(NotifyOnIpChange), value);
     }
 
+    public bool HotkeyEnabled
+    {
+        get => Get(nameof(HotkeyEnabled), defaultValue: true);
+        set => Set(nameof(HotkeyEnabled), value);
+    }
+
     private static bool Get(string key, bool defaultValue)
     {
         try

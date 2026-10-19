@@ -5,7 +5,7 @@
 <h1 align="center">My Public IP Address</h1>
 
 <p align="center">
-  <b>Your public IP next to the Windows clock, and a notification as soon as it changes.</b>
+  <b>Your public IP next to the Windows clock: where it is, whether your VPN is on, and how good your connection is.</b>
 </p>
 
 <p align="center">
@@ -31,38 +31,40 @@
 ---
 
 Setting up a VPN, opening a port, whitelisting your office in a firewall, answering a support
-technician: sooner or later you need your **public** IP address. Instead of opening a browser on a
-page full of ads, *My Public IP Address* keeps it in the notification area, always up to date, and
-tells you when it changes, for instance when your VPN drops.
+technician: sooner or later you need your **public** IP address, and to know whether your VPN is
+really on. Instead of opening a browser on a page full of ads, *My Public IP Address* keeps it all in
+the notification area, always up to date, and tells you when it changes.
 
 ## Features
 
-- **Hover** the icon: the tooltip shows your public IPv4 and IPv6.
-- **Click** it: a Windows 11 style flyout with your public and local addresses, one-click copy, and your recent addresses.
-- **Get notified** when your public IP changes, with the old and the new address and a button to copy it.
-- **Right-click** it: copy, refresh, start with Windows, notifications, quit. The menu also opens with the keyboard.
+- **Overview**: public IPv4 and IPv6, the country, city and internet provider behind them, VPN status,
+  and the live latency with a small chart and a quality rating.
+- **Network**: Wi-Fi or Ethernet, network name and signal, local IP, gateway, DNS servers, MAC address,
+  adapter and link speed. Every value is copied in one click.
+- **History**: the recent public addresses with their date, country and VPN.
+- **VPN at a glance**: a green dot on the tray icon while a VPN is connected.
+- **Notifications** when the public IP changes or the VPN connects or drops, with a button to copy the new address.
+- **Keyboard shortcut**: Win+Shift+I copies the public IP from any app.
+- **Tray icon**: tooltip with the IP, location and VPN; right-click menu with copy, refresh and settings
+  (also opens with the keyboard).
 - **Always current**: refreshed when the network changes (Wi-Fi, VPN, Ethernet...), every 15 minutes,
   and retried quickly after a failure. An error is never shown or copied as if it were an address.
-- **IPv4 and IPv6**, each looked up independently with fallback services.
 - **Starts with Windows**, quietly. Can be turned off from the app or from Windows Settings.
-- **Native look**: acrylic flyout, light and dark themes, follows the taskbar position and display scaling.
+- **Native look**: acrylic flyout with tabs, light and dark themes, follows the taskbar position and display scaling.
 - **Private**: no account, no ads, no tracking; the history stays on your PC (see [PRIVACY.md](PRIVACY.md)).
 - English and French.
 
 ## Screenshots
 
-| Flyout, dark theme | Flyout, light theme |
+| Overview | Network |
 | :---: | :---: |
-| <img src="docs/images/flyout-dark.png" alt="The flyout above the Windows clock: public IPv4 and IPv6, local address and recent addresses" width="340" /> | <img src="docs/images/flyout-light.png" alt="Flyout, light theme" width="340" /> |
-| **Notification when the IP changes** | **Tooltip on hover** |
-| <img src="docs/images/notification.png" alt="Windows notification: your public IP address changed, with a button to copy the new address" width="380" /> | <img src="docs/images/tooltip.png" alt="Tooltip of the notification area icon with the IPv4 and IPv6 addresses" width="300" /> |
+| <img src="docs/images/overview.png" alt="Overview tab: public IPv4 and IPv6, location and provider, VPN status and live latency" width="360" /> | <img src="docs/images/network.png" alt="Network tab: connection, local IP, gateway, DNS servers and MAC address" width="360" /> |
+| **History** | **Notification when the IP changes** |
+| <img src="docs/images/history.png" alt="History tab: recent public addresses with country and VPN" width="360" /> | <img src="docs/images/notification.png" alt="Windows notification: public IP changed and VPN connected, with a button to copy the new address" width="360" /> |
+| **Tray icon with VPN dot and menu** | **Light theme** |
+| <img src="docs/images/menu.png" alt="Right-click menu of the tray icon, with the green VPN dot on the icon" width="360" /> | <img src="docs/images/light.png" alt="Overview tab in the light theme" width="360" /> |
 
-<p align="center">
-  <img src="docs/images/menu.png" alt="Right-click menu of the notification area icon" width="320" /><br/>
-  <sub>Right-click menu</sub>
-</p>
-
-<sub>Screenshots use addresses reserved for documentation (RFC 5737 and RFC 3849).</sub>
+<sub>Screenshots use addresses reserved for documentation (RFC 5737 and RFC 3849) and a fictitious provider.</sub>
 
 ## Architecture
 
@@ -71,35 +73,38 @@ The solution separates the behavior from the Windows shell around it:
 ```mermaid
 flowchart LR
     subgraph App["MyPublicIp · WinUI 3 app"]
-        Tray["TrayIconController<br/><i>icon, tooltip, menu</i>"]
-        Flyout["FlyoutWindow<br/><i>XAML + x:Bind</i>"]
-        Platform["Platform services<br/><i>startup task, clipboard, settings,<br/>notifications, JSON history, resources</i>"]
+        Tray["TrayIconController<br/><i>icon, VPN dot, tooltip, menu</i>"]
+        Flyout["FlyoutWindow<br/><i>tabs, XAML + x:Bind</i>"]
+        Platform["Platform services<br/><i>startup task, clipboard, settings, notifications,<br/>global hotkey, Wi-Fi profile, JSON history</i>"]
     end
 
     subgraph Core["MyPublicIp.Core · net10.0, no Windows dependency"]
-        VM["MainViewModel"]
+        Main["MainViewModel"]
+        Children["Connection, Network and<br/>Settings view models"]
         Monitor["PublicIpMonitor<br/><i>refresh policy</i>"]
-        Resolver["HttpPublicIpResolver<br/><i>fallback, strict parsing</i>"]
+        Resolver["HttpPublicIpResolver"]
+        Geo["HttpGeoLocator<br/><i>cache per address</i>"]
+        Latency["LatencyMonitor<br/><i>adaptive rate</i>"]
+        Adapters["AdapterSelection<br/><i>primary adapter, VPN</i>"]
         History["IpHistory<br/><i>change detection</i>"]
-        Local["SystemLocalNetworkInfo"]
-        Placement["FlyoutPlacement"]
     end
 
-    Services[("ipify · icanhazip · AWS")]
+    Services[("ipify · icanhazip · AWS<br/>ipinfo · ipapi · 1.1.1.1")]
 
-    Tray --> VM
-    Flyout --> VM
-    Flyout --> Placement
-    VM --> Monitor --> Resolver --> Services
-    VM --> History
-    VM --> Local
-    VM -. "IStartupManager, IClipboard,<br/>IAppSettings, ILocalizer" .-> Platform
-    History -. "IIpHistoryStore,<br/>IIpChangeNotifier" .-> Platform
+    Tray --> Main
+    Flyout --> Main
+    Main --> Children
+    Main --> Monitor --> Resolver --> Services
+    Main --> History
+    Children --> Geo --> Services
+    Children --> Latency --> Services
+    Children --> Adapters
+    Main -. "interfaces" .-> Platform
 ```
 
-- **`MyPublicIp.Core`** holds all the logic: lookup, refresh policy, change detection and history,
-  view model, flyout placement. It only depends on .NET and
-  [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet), so it is fully unit tested.
+- **`MyPublicIp.Core`** holds all the logic: lookup, refresh policy, geolocation, latency, adapter
+  and VPN detection, change detection and history, view models and flyout placement. It only depends
+  on .NET and [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet), so it is fully unit tested.
 - **`MyPublicIp`** is a thin WinUI 3 shell: the composition root ([`App.xaml.cs`](src/MyPublicIp/App.xaml.cs)),
   the views, and the Windows implementations of the Core interfaces.
 
@@ -107,11 +112,15 @@ flowchart LR
 
 | Topic | Choice |
 | --- | --- |
-| UI pattern | MVVM with source-generated properties and commands; the flyout and the tray menu share one view model. |
+| UI pattern | MVVM with source-generated properties and commands: a main view model for the public address and history, child view models for the Connection, Network and Settings tabs, shared by the flyout and the tray menu. |
 | Refresh policy | Periodic refresh, network changes debounced (adapters often change in bursts), increasing backoff after failures (3 s to 1 min), concurrent requests coalesced. |
 | Change detection | A change is a new IPv4 or a new IPv6 /64 network: IPv6 privacy extensions rotate the rest of the address every day, which must not raise a notification. The first result of a session is recorded silently. |
 | Testability | Time is injected with `TimeProvider`: refresh and backoff tests advance a fake clock instead of sleeping. |
 | Robustness | Answers are parsed strictly (`IPAddress.TryParse` alone accepts `"1"`); one failing service falls back to the next; the clipboard is retried when another app holds it; the history is written atomically. |
+| VPN detection | Windows has no API for third-party VPNs: the adapters are classified (tunnel and PPP types, names of common VPN clients, system tunnels such as Teredo excluded) by pure functions covered by tests. |
+| Latency | ICMP ping to 1.1.1.1, falling back to a TCP connect time when ICMP is blocked; every 2 s while the flyout is open, once a minute otherwise. |
+| Geolocation | Looked up only when the public address changes, cached per address, with a second service as fallback. |
+| Global hotkey | `RegisterHotKey` on a message-only window whose procedure is an `UnmanagedCallersOnly` function pointer: no delegate to keep alive, compatible with trimming. |
 | Notifications | Windows App SDK `AppNotificationManager`, with the COM activator declared in the manifest: a click reaches the running instance, or starts the app if it was closed. |
 | Start with Windows | MSIX `windows.startupTask` instead of a Startup-folder shortcut, which a packaged app cannot create. A choice made in Windows Settings is respected. |
 | Tray icon identity | Windows ties a tray icon GUID to the executable path, and every MSIX update changes that path: the GUID is derived from the path so the icon always comes back after an update. |
@@ -126,13 +135,15 @@ flowchart LR
 │   │   ├── Abstractions             Interfaces implemented by the app (startup, clipboard, settings...)
 │   │   ├── PublicIp                 Resolver, monitor, refresh policy, snapshot
 │   │   ├── History                  Address history and change detection
-│   │   ├── LocalNetwork             Address on the local network
+│   │   ├── Geo                      Location and provider of the public address
+│   │   ├── Latency                  Latency probe, monitor and quality rating
+│   │   ├── LocalNetwork             Adapter details and VPN detection
 │   │   ├── Layout                   Flyout placement next to the clock
-│   │   └── ViewModels               MainViewModel
+│   │   └── ViewModels               Main, Connection, Network and Settings view models
 │   └── MyPublicIp                   WinUI 3 app (MSIX)
 │       ├── Views                    Flyout window
 │       ├── Tray                     Notification area icon and menu
-│       ├── Platform                 Windows implementations, notifications, Win32 interop
+│       ├── Platform                 Windows implementations, notifications, hotkey, Win32 interop
 │       ├── Diagnostics              Debug-only demo mode for screenshots
 │       ├── Strings                  en-US and fr-FR resources
 │       └── Package.appxmanifest     Store identity, capabilities, startup task, notification activation

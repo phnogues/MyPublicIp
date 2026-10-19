@@ -9,4 +9,7 @@ public interface IAppSettings
 
     /// <summary>Show a Windows notification when the public address changes. On by default.</summary>
     bool NotifyOnIpChange { get; set; }
+
+    /// <summary>Copy the public IP with Win+Shift+I from any app. On by default.</summary>
+    bool HotkeyEnabled { get; set; }
 }

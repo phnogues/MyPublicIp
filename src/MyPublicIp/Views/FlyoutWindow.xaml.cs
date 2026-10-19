@@ -1,5 +1,6 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using MyPublicIp.Core.Layout;
 using MyPublicIp.Core.ViewModels;
@@ -16,9 +17,9 @@ namespace MyPublicIp.Views;
 /// </summary>
 public sealed partial class FlyoutWindow : Window
 {
-    private const double ContentWidth = 340;
+    private const double ContentWidth = 380;
     private const double ScreenMargin = 12;
-    private const double FallbackHeight = 260;
+    private const double FallbackHeight = 420;
 
     /// <summary>A click on the tray icon first takes the focus away from the flyout, which hides it.</summary>
     private static readonly TimeSpan ReopenGuard = TimeSpan.FromMilliseconds(400);
@@ -28,11 +29,12 @@ public sealed partial class FlyoutWindow : Window
     private long _hiddenAt;
     private bool _allowClose;
 
-    public FlyoutWindow(MainViewModel viewModel, string title)
+    public FlyoutWindow(MainViewModel viewModel, string title, string versionText)
     {
         ViewModel = viewModel;
         InitializeComponent();
         Title = title;
+        VersionText.Text = versionText;
         _hwnd = WindowNative.GetWindowHandle(this);
 
         var presenter = OverlappedPresenter.Create();
@@ -64,6 +66,7 @@ public sealed partial class FlyoutWindow : Window
         AppWindow.Show();
         Activate();
         NativeMethods.SetForegroundWindow(_hwnd);
+        ViewModel.OnFlyoutVisibilityChanged(visible: true);
     }
 
     public void HideFlyout()
@@ -72,6 +75,7 @@ public sealed partial class FlyoutWindow : Window
         {
             AppWindow.Hide();
             _hiddenAt = Environment.TickCount64;
+            ViewModel.OnFlyoutVisibilityChanged(visible: false);
         }
     }
 
@@ -124,6 +128,16 @@ public sealed partial class FlyoutWindow : Window
             args.Cancel = true;
             HideFlyout();
         }
+    }
+
+    /// <summary>Shows the panel of the selected tab; the window then follows the new content height.</summary>
+    private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        string? tab = sender.SelectedItem?.Tag as string;
+        OverviewPanel.Visibility = tab is null or "Overview" ? Visibility.Visible : Visibility.Collapsed;
+        NetworkPanel.Visibility = tab == "Network" ? Visibility.Visible : Visibility.Collapsed;
+        HistoryPanel.Visibility = tab == "History" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = tab == "Settings" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
